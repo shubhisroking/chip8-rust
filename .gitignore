@@ -1,0 +1,20 @@
+# Rust build artifacts
+/target/
+
+# Editor/IDE specific files
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+
+# Operating system specific files
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Temporary files
+*.swp
+*.bak
+*~
