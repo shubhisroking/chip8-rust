@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Chip-8 Emulator</title>
+        <meta charset="utf-8">
+        <style>
+            body {
+                font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif, sans-serif;
+                text-align: center;
+                margin: 20px;
+            }
+            canvas {
+                border: 2px solid #333;
+                background-color: #000;
+            }
+            #controls {
+                margin: 20px 0;
+            }
+            #fileinput {
+                margin: 10px;
+            }
+        </style>
+    </head>
+    <body>
+        <h1>Chip-8 Emulator</h1>
+        <div id="controls">
+            <label for="fileinput">Upload a Chip-8 game: </label>
+            <input type="file" id="fileinput" autocomplete="off"/>
+        </div>
+        <br/>
+        <canvas id="canvas">If you see this message, then your browser doesn't support HTML5</canvas>
+        <div style="margin-top: 20px;">
+            <h3>Controls:</h3>
+            <p>Use keyboard keys 1-4, Q-R, A-F, Z-V to control the emulator</p>
+            <pre>
+1 2 3 4
+Q W E R
+A S D F
+Z X C V
+            </pre>
+        </div>
+    </body>
+    <script type="module" src="index.js"></script>
+</html>

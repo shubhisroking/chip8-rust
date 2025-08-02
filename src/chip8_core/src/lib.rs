@@ -1,3 +1,5 @@
+use rand;
+
 pub const SCREEN_WIDTH: usize = 64;
 pub const SCREEN_HEIGHT: usize = 32;
 const RAM_SIZE: usize = 4096;
@@ -83,6 +85,283 @@ impl Emu {
 
     pub fn tick(&mut self) {
         let op = self.fetch();
+        self.execute(op);
+    }
+
+    fn execute(&mut self, op: u16) {
+        let digit1 = (op & 0xF000) >> 12;
+        let digit2 = (op & 0x0F00) >> 8;
+        let digit3 = (op & 0x00F0) >> 4;
+        let digit4 = op & 0x000F;
+
+        match (digit1, digit2, digit3, digit4) {
+            (0, 0, 0, 0) => return,
+
+            (0, 0, 0xE, 0) => {
+                self.screen = [false; SCREEN_WIDTH * SCREEN_HEIGHT];
+            },
+            
+            (0, 0, 0xE, 0xE) => {
+                let ret_addr = self.pop();
+                self.pc = ret_addr;
+            },
+            
+            (1, _, _, _) => {
+                let nnn = op & 0xFFF;
+                self.pc = nnn;
+            },
+            
+            (2, _, _, _) => {
+                let nnn = op & 0xFFF;
+                self.push(self.pc);
+                self.pc = nnn;
+            },
+            
+            (3, _, _, _) => {
+                let x = digit2 as usize;
+                let nn = (op & 0xFF) as u8;
+                if self.v_regs[x] == nn {
+                    self.pc += 2;
+                }
+            },
+            
+            (4, _, _, _) => {
+                let x = digit2 as usize;
+                let nn = (op & 0xFF) as u8;
+                if self.v_regs[x] != nn {
+                    self.pc += 2;
+                }
+            },
+            
+            (5, _, _, 0) => {
+                let x = digit2 as usize;
+                let y = digit3 as usize;
+                if self.v_regs[x] == self.v_regs[y] {
+                    self.pc += 2;
+                }
+            },
+            
+            (6, _, _, _) => {
+                let x = digit2 as usize;
+                let nn = (op & 0xFF) as u8;
+                self.v_regs[x] = nn;
+            },
+            
+            (7, _, _, _) => {
+                let x = digit2 as usize;
+                let nn = (op & 0xFF) as u8;
+                self.v_regs[x] = self.v_regs[x].wrapping_add(nn);
+            },
+            
+            (8, _, _, 0) => {
+                let x = digit2 as usize;
+                let y = digit3 as usize;
+                self.v_regs[x] = self.v_regs[y];
+            },
+            
+            (8, _, _, 1) => {
+                let x = digit2 as usize;
+                let y = digit3 as usize;
+                self.v_regs[x] |= self.v_regs[y];
+            },
+            
+            (8, _, _, 2) => {
+                let x = digit2 as usize;
+                let y = digit3 as usize;
+                self.v_regs[x] &= self.v_regs[y];
+            },
+            
+            (8, _, _, 3) => {
+                let x = digit2 as usize;
+                let y = digit3 as usize;
+                self.v_regs[x] ^= self.v_regs[y];
+            },
+            
+            (8, _, _, 4) => {
+                let x = digit2 as usize;
+                let y = digit3 as usize;
+                let (new_vx, carry) = self.v_regs[x].overflowing_add(self.v_regs[y]);
+                let new_vf = if carry { 1 } else { 0 };
+                self.v_regs[x] = new_vx;
+                self.v_regs[0xF] = new_vf;
+            },
+
+            (8, _, _, 5) => {
+                let x = digit2 as usize;
+                let y = digit3 as usize;
+                let (new_vx, borrow) = self.v_regs[x].overflowing_sub(self.v_regs[y]);
+                let new_vf = if borrow { 0 } else { 1 };
+                self.v_regs[x] = new_vx;
+                self.v_regs[0xF] = new_vf;
+            },
+            
+            (8, _, _, 6) => {
+                let x = digit2 as usize;
+                let lsb = self.v_regs[x] & 1;
+                self.v_regs[x] >>= 1;
+                self.v_regs[0xF] = lsb;
+            },
+            
+            (8, _, _, 7) => {
+                let x = digit2 as usize;
+                let y = digit3 as usize;
+                let (new_vx, borrow) = self.v_regs[y].overflowing_sub(self.v_regs[x]);
+                let new_vf = if borrow { 0 } else { 1 };
+                self.v_regs[x] = new_vx;
+                self.v_regs[0xF] = new_vf;
+            },
+            
+            (8, _, _, 0xE) => {
+                let x = digit2 as usize;
+                let msb = (self.v_regs[x] >> 7) & 1;
+                self.v_regs[x] <<= 1;
+                self.v_regs[0xF] = msb;
+            },
+            
+            (9, _, _, 0) => {
+                let x = digit2 as usize;
+                let y = digit3 as usize;
+                if self.v_regs[x] != self.v_regs[y] {
+                    self.pc += 2;
+                }
+            },
+            
+            (0xA, _, _, _) => {
+                let nnn = op & 0xFFF;
+                self.i_reg = nnn;
+            },
+            
+            (0xB, _, _, _) => {
+                let nnn = op & 0xFFF;
+                self.pc = (self.v_regs[0] as u16) + nnn;
+            },
+            
+            (0xC, _, _, _) => {
+                let x = digit2 as usize;
+                let nn = (op & 0xFF) as u8;
+                let rng: u8 = rand::random();
+                self.v_regs[x] = rng & nn;
+            },
+            
+            (0xD, _, _, _) => {
+                let x_coord = self.v_regs[digit2 as usize] as u16;
+                let y_coord = self.v_regs[digit3 as usize] as u16;
+                let num_rows = digit4;
+                let mut flipped = false;
+                
+                for y_line in 0..num_rows {
+                    let addr = self.i_reg + y_line as u16;
+                    let pixels = self.ram[addr as usize];
+                    for x_line in 0..8 {
+                        if (pixels & (0b1000_0000 >> x_line)) != 0 {
+                            let x = (x_coord + x_line) as usize % SCREEN_WIDTH;
+                            let y = (y_coord + y_line as u16) as usize % SCREEN_HEIGHT;
+                            let idx = x + SCREEN_WIDTH * y;
+                            flipped |= self.screen[idx];
+                            self.screen[idx] ^= true;
+                        }
+                    }
+                }
+                
+                if flipped {
+                    self.v_regs[0xF] = 1;
+                } else {
+                    self.v_regs[0xF] = 0;
+                }
+            },
+            
+            (0xE, _, 9, 0xE) => {
+                let x = digit2 as usize;
+                let vx = self.v_regs[x];
+                let key = self.keys[vx as usize];
+                if key {
+                    self.pc += 2;
+                }
+            },
+            
+            (0xE, _, 0xA, 1) => {
+                let x = digit2 as usize;
+                let vx = self.v_regs[x];
+                let key = self.keys[vx as usize];
+                if !key {
+                    self.pc += 2;
+                }
+            },
+            
+            (0xF, _, 0, 7) => {
+                let x = digit2 as usize;
+                self.v_regs[x] = self.dt;
+            },
+            
+            (0xF, _, 0, 0xA) => {
+                let x = digit2 as usize;
+                let mut pressed = false;
+                for i in 0..self.keys.len() {
+                    if self.keys[i] {
+                        self.v_regs[x] = i as u8;
+                        pressed = true;
+                        break;
+                    }
+                }
+                
+                if !pressed {
+                    self.pc -= 2;
+                }
+            },
+            
+            (0xF, _, 1, 5) => {
+                let x = digit2 as usize;
+                self.dt = self.v_regs[x];
+            },
+            
+            (0xF, _, 1, 8) => {
+                let x = digit2 as usize;
+                self.st = self.v_regs[x];
+            },
+            
+            (0xF, _, 1, 0xE) => {
+                let x = digit2 as usize;
+                let vx = self.v_regs[x] as u16;
+                self.i_reg = self.i_reg.wrapping_add(vx);
+            },
+            
+            (0xF, _, 2, 9) => {
+                let x = digit2 as usize;
+                let c = self.v_regs[x] as u16;
+                self.i_reg = c * 5;
+            },
+            
+            (0xF, _, 3, 3) => {
+                let x = digit2 as usize;
+                let vx = self.v_regs[x] as f32;
+                
+                let hundreds = (vx / 100.0).floor() as u8;
+                let tens = ((vx / 10.0).floor() as u8) % 10;
+                let ones = (vx % 10.0) as u8;
+                
+                self.ram[self.i_reg as usize] = hundreds;
+                self.ram[(self.i_reg + 1) as usize] = tens;
+                self.ram[(self.i_reg + 2) as usize] = ones;
+            },
+            
+            (0xF, _, 5, 5) => {
+                let x = digit2 as usize;
+                let i = self.i_reg as usize;
+                for idx in 0..=x {
+                    self.ram[i + idx] = self.v_regs[idx];
+                }
+            },
+            
+            (0xF, _, 6, 5) => {
+                let x = digit2 as usize;
+                let i = self.i_reg as usize;
+                for idx in 0..=x {
+                    self.v_regs[idx] = self.ram[i + idx];
+                }
+            },
+            
+            (_, _, _, _) => unimplemented!("Unimplemented opcode: {}", op),
+        }
     }
 
     fn fetch(&mut self) -> u16 {
